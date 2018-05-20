@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <script src="js/jquery.min.js"></script>
+  <script src="dist/jrepeat.js"></script>
+  <script src="js/ui.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+  <title>jRepeat</title>
+  <style id="style">
+.jrepeat-transitioning {
+  opacity: 0;
+}
+.jrepeat-enter {
+  transition: opacity .5s;
+  opacity: 1;
+}
+  </style>
+</head>
+<body>
+  <h1>jRepeat - jQuery repeating templates</h1>
+  <div class="container">
+
+    <div class="test">
+      <div class="element"><textarea class="element-input"></textarea></div>
+      <div class="template"><textarea class="template-input"></textarea></div>
+      <div class="data"><textarea class="list-input"></textarea></div>  
+      <div class="style"><textarea class="style-input"></textarea></div>  
+    </div>
+    
+    <div class="demo">
+
+      <div class="controls">
+        <input type="text" id="filter" onkeyup="changed()" placeholder="search">
+        <button onclick="add()">Add</button>
+        <button onclick="prev()">Prev</button>
+        <button onclick="next()">Next</button>
+        <span class="info">Items: <span id="items"></span></span>
+        <span class="info">Page: <span id="page"></span></span>
+      </div>
+  
+<template id="template1">
+  <li if="$page == 0 && $index == 0">first</li>
+  <li> {{$page * $limit + $index + 1}}: {{var2.test}} {{myfunc('my var3 is ')}} <span each="var3">{{var3[$index1]}}, </span> this is <b>{{var1}}</b> {{$self}} </li>
+</template>
+  
+      <ul jrepeat transitionexit="0" transitionenter="500">
+          <li if="$page == 0 && $index == 0">first</li>
+          <li> {{$page * $limit + $index + 1}}: {{var2.test}} {{myfunc('my var3 is ')}} <span each="var3">{{var3[$index1]}}, </span> this is <b>{{var1}}</b> {{$self}} </li>
+      </ul>
+      
+      <div class="functions">
+        <textarea class="functions-input">{
+  myfunc: function(val) { return val;}
+}</textarea>
+      </div> 
+    </div>
+
+  </div>
+
+  <script>
+    var myObj = {one: { 
+      list: [
+        "a test",
+        {var1: "test1", var2: {test: "hello"}, var3: [1, 2, 3]},
+        {var1: "abc2"},
+        {var1: "testabc3"},
+        {var1: "<b>banana4</b>"},
+        {var1: "test1"},
+        {var1: "abc2"},
+        {var1: "testabc3"},
+        {var1: "<b>banana4</b>"},
+        {var1: "test1"},
+        {var1: "abc2"},
+        {var1: "testabc3"},
+        {var1: "<b>banana4</b>"},
+        {var1: "test1"},
+        {var1: "abc2"},
+        {var1: "testabc3"},
+        {var1: "<b>banana4</b>"},
+        {var1: "test1"},
+        {var1: "abc2"},
+        {var1: "test abc3"},
+        {var1: "<b>banana4</b>"},
+        {var1: "test1"},
+        {var1: "abc2"},
+        {var1: "testabc3"},
+        {var1: "<b>banana4</b>"},
+        {var1: "test1"},
+        {var1: "abc2"},
+        {var1: "testabc3"},
+        {var1: "<b>banana4</b>"},
+        {var1: "test1"},
+        {var1: "abc2"},
+        {var1: "testabc3"},
+        {var1: "<b>banana4</b>"},
+      ]
+    }};
+  </script>
+  
+  <script>
+
+    var sr = jQuery('[jrepeat]').jRepeat({
+      state: myObj.one.list, 
+      templateId: 'template1',
+      // transitionExit: 0,
+      // transitionEnter: 500,
+      limit: 6,
+      // tag: 'li',
+      functions: {
+        myfunc: function(val) { return val;}
+      },
+    });
+
+    jQuery('#page').text(sr.get('page') + 1);
+    jQuery('#items').text(myObj.one.list.length);
+
+
+    sr.onUpdate(function(){
+      jQuery('#items').text(sr.length());
+      jQuery('#page').text(sr.get('page') + 1)
+    })
+
+    var counter = myObj.one.list.length;
+    function add() {
+      var list = sr.get('state');
+      list.push({
+        var1: 'new' + ++counter
+      });
+      sr.updateInternal();
+      sr.set('page', Math.floor((sr.length() - 1) / sr.get('limit')));
+      sr.update();
+    };
+
+    function prev () {
+      sr.prevPage();
+    }
+
+    function next() {
+      sr.nextPage();
+    }
+
+    function changed () {
+      var $filter = jQuery('#filter');
+      var filterValue = $filter.val();
+      sr.filter(function (item) {
+        return RegExp(filterValue).test(item.var1);
+      });
+    }
+
+  </script>
+
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+</body>
+</html>
