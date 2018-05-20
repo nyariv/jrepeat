@@ -579,25 +579,18 @@
     if (!s) return undefined;
     special = special || {};
     functions = functions || {};
-    special.self = scope;
+    var exprPart = s;
     var newSpecial = {};
+    newSpecial.$self = scope;
 
     for (var i in special) {
       newSpecial['$' + i] = special[i];
     }
 
     var newScope = $.extend({}, typeof scope == 'object' ? scope : {}, newSpecial, functions);
-
-    var scopeVars = "";
-    for (var v in newScope) {
-      scopeVars += "var " + v + " = scope['" + v + "'];"
-    }
-
-    var exprPart = s;
-
     function getVar(path) {
       try {
-        return Function('scope', "'use strict'; " + scopeVars + " return " + path)(newScope);
+        return Function('scope', "'use strict';  return scope." + path)(newScope);
       } catch (e) {
         return undefined;
       }
@@ -667,15 +660,6 @@
     // Variables
     var temp = varConvert("a("+exprPart+")").replaced;
     exprPart = temp.substring(2, temp.length - 1);
-    // Variables
-    // exprPart = exprPart.replace(/(?<!['"\d\/])[a-z$_][\.a-z$_\d\[\]'"]*/gi, function (match, offset, input_string) {
-    //   return "$getVar('" + match.replace(/'/, "\\'") + "')";
-    // });
-
-    // functions
-    // exprPart = exprPart.replace(/\$getVar\((.*?)\)\s*\(/gi, function (match, path, offset, input_string) {
-    //   return "$getFunc(" + path + ")(";
-    // });
     
     var count = 0;
     exprPart = exprPart.replace(/===-"-===/g, function(match, offset, input_string) {
