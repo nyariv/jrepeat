@@ -16,12 +16,23 @@ jQuery(document).ready(function(){
     sr.set('state', list);
   });
   
-  jQuery('.element-input').val($('[jrepeat]').empty()[0].outerHTML);
+  jQuery('.element-input').val(`<ul jrepeat="" transitionexit="0" transitionenter="500" limit="6" page="0" templateid="template1"></ul>`);
   jQuery('.element-input').keyup(function() {
     var list = JSON.parse($('.list-input').val());
     jQuery('[jrepeat]').replaceWith(jQuery('.element-input').val());
     sr = jQuery('[jrepeat]').jRepeat({
       state: list, 
+      functions: {
+        myfunc: function(val) { return val;}
+      }
+    });
+    jQuery('#page').text(sr.get('page') + 1);
+    jQuery('#items').text(myObj.one.list.length);
+
+
+    sr.onUpdate(function(){
+      jQuery('#items').text(sr.length());
+      jQuery('#page').text(sr.get('page') + 1)
     });
   });
   
