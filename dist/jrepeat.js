@@ -1,6 +1,6 @@
 (function ($) {
   'use strict'
-  
+
   /**
    * Basic template jquery plugin.
    * 
@@ -130,9 +130,9 @@
 
       $container.addClass('jrepeat-processed');
 
-      var $temp = $('<div>');
-      $temp.append(contents);
-      if ($temp.html() != $container.html()) {
+  
+      if ($container.data('contents') != contents) {
+        $container.data('contents', contents);
         $container.addClass('jrepeat-exit');
         $container.addClass('jrepeat-transitioning');
         $container.removeClass('jrepeat-enter');
@@ -142,7 +142,7 @@
           $container.removeClass('jrepeat-exit');
           $container.addClass('jrepeat-enter');
 
-          $container.html(contents);
+          $container[0].innerHTML = contents;
           obj.onUpdateCallback($container, obj);
 
           timer = setTimeout(function () {
@@ -172,7 +172,7 @@
       var template = undefined;
 
       if (!template && attr('templateId')) {
-        template = $("#" + CSS.escape(attr('templateId'))).html();
+        template = $("#" + CSS.escape(attr('templateId')))[0].innerHTML;
       }
       
       if (!template && attr('tag')) {
@@ -223,7 +223,7 @@
     var state = options.state;
     options.functions = options.functions || {};
     
-    var template = templateId ? $("#" + CSS.escape(templateId)).html() : options.template;
+    var template = templateId ? $("#" + CSS.escape(templateId))[0].innerHTML : options.template;
 
     if (!state) {
       throw new Error('No state specified')
@@ -278,7 +278,7 @@
     obj.data = $.extend({}, attributes);
     obj.data = $.extend({}, attributes, attrs(), options, {
       container: $container[0],
-      initialContent: $container.html()
+      initialContent: $container[0].innerHTML
     });
 
     attr('template', tpl());
@@ -296,8 +296,8 @@
       var $newContent = $('<div></div>');
       $newContent.append(html(tpl(), attr('state'), {}, attr('functions')));
 
-      if ($newContent.html() !== $container.html()) {
-        $container.html($newContent.html());
+      if ($newContent[0].innerHTML !== $container[0].innerHTML) {
+        $container[0].innerHTML = $newContent[0].innerHTML;
         obj.onUpdateCallback($container, obj);
       }
       return obj;
@@ -323,9 +323,9 @@
     function directives(template, state, special, functions) {
       
       var $template = $('<div></div>');
-      $template.html(template);
+      $template[0].innerHTML = template;
 
-      $template.find('[if]').not($template.find('[each] [if]')).each(function(i, elem) {
+      each($template.find('[if]').not($template.find('[each] [if]')), function(i, elem) {
         var $elem = $(elem);
         var stateParam = $elem.attr('if');
         var show = stateParam ? expr(stateParam, state, special, functions) : undefined;
@@ -334,7 +334,7 @@
         }
       });
 
-      $template.find('[show]').not($template.find('[each] [if]')).each(function(i, elem) {
+      each($template.find('[show]').not($template.find('[each] [if]')), function(i, elem) {
         var $elem = $(elem);
         var stateParam = $elem.attr('jshow');
         var show = stateParam ? expr(stateParam, state, special, functions) : undefined;
@@ -342,7 +342,7 @@
         $elem.removeClass(!show ? 'show' : 'hide');
       });
 
-      $template.find('[jclass]').not($template.find('[each] [if]')).each(function(i, elem) {
+      each($template.find('[jclass]').not($template.find('[each] [if]')), function(i, elem) {
         var $elem = $(elem);
         var stateParam = $elem.attr('jclass');
         var classes = stateParam ? expr(stateParam, state, special, functions) : undefined;
@@ -355,10 +355,10 @@
         }
       });
 
-      $template.find('[each]').not($template.find('[each] [each]')).each(function(i, elem) {
+      each($template.find('[each]').not($template.find('[each] [each]')), function(i, elem) {
         var $elem = $(elem);
-        var tpl = $elem.html();
-        $elem.empty();
+        var tpl = elem.innerHTML;
+        var markup = "";
         var stateParam = $elem.attr('each');
         var list = stateParam ? expr(stateParam, state, special, functions) : undefined;
         if (list) {
@@ -371,12 +371,19 @@
           }
           for (var j in list) {
             newSpecial['index' + (count ? count : '')] = j;
-            $elem.append(html(tpl, state, newSpecial, functions));
+            markup += html(tpl, state, newSpecial, functions);
           }
         }
+        elem.innerHTML = markup;
       });
 
-      return $template.html();
+      function each(array, callback) {
+        for (var i = 0; i < array.length; i++) {
+          callback(i, array[i]);
+        }
+      }
+
+      return $template[0].innerHTML;
     }
 
     /**
@@ -393,7 +400,7 @@
         attr('template', set)
         update();
       }
-      return  attr('template') ? attr('template') : (templateId ? $("#" + CSS.escape(templateId)).html() : $container.html());
+      return  attr('template') ? attr('template') : (templateId ? $("#" + CSS.escape(templateId))[0].innerHTML : $container[0].innerHTML);
     }
   
     /**
@@ -407,10 +414,16 @@
      *  Extra scope variables (usuallaly used for loop index, etc).
      */
     function html (template, state, special, functions) {
+      var h = hash(template, state, special, functions);
+      var c = cache(h);
+      if (c) return c;
+
       template = directives(template, state, special, functions);
-      return template.replace(/({{(.*?)}})/g, function(match, placeholder, expression, offset, input_string) {
+      template = template.replace(/({{(.*?)}})/g, function(match, placeholder, expression, offset, input_string) {
         return escape(stringify(expr(expression, state, special, functions), true));
       });
+
+      return cache(h, template);
     }
 
     /**
@@ -501,11 +514,9 @@
           return 'undefined';
         }
         return "";
-      case 'null':
-        return 'null';
       case 'string':
         if (!forDisplay) {
-          return '"' + value.replace(/"/g, '\\"') + '"';
+          return JSON.stringify(value);
         }
         return value;
       default:
@@ -529,16 +540,7 @@
     }
 
     try {
-      var temp = s;
-      if ((s[0] == "'") && (s[s.length-1] == "'")) {
-        temp = '"' + s
-          .substring(1, s.length-1)
-          .replace(/\\\\/g, '__--__')
-          .replace(/"/g, '\\"')
-          .replace(/\\'/g, "'") 
-          .replace(/__--__/g, '\\\\') + '"';
-      }
-      return JSON.parse(temp);
+      return JSON.parse(s);
     } catch (e) {
 
     }
@@ -551,12 +553,8 @@
       return parseFloat(s);
     }
 
-    if (s == 'true') {
-      return true;
-    }
-
-    if (s == 'false') {
-      return false;
+    if (s === 'undefined') {
+      return undefined;
     }
 
     return s;
@@ -587,100 +585,75 @@
       newSpecial['$' + i] = special[i];
     }
 
-    var newScope = $.extend({}, typeof scope == 'object' ? scope : {}, newSpecial, functions);
-    function getVar(path) {
-      try {
-        return Function('scope', "'use strict';  return scope." + path)(newScope);
-      } catch (e) {
-        return undefined;
+    var vars = {};
+    var regex = /([\w]+)\s*?(\()?/g;
+    var found;
+    while (found = regex.exec(s)) {
+      if (found[2]) {
+        vars[found[1]] = function(){};
       }
+      vars[found[1]] = undefined;
     }
 
-    function getFunc(path) {
-      return getVar(path) || function(){};
-    }
-
-    // Strings - single quote
-    var stringS = [];
-    exprPart = exprPart.replace(/(\w\[)?'.*?(?<!\\)'/g, function(match, mismatch, offset, input_string) {
-      if(mismatch) {
-        return match;
-      }
-      stringS.push(match);
-      return "===-'-===";
-    });
-
-    // Strings - double quotes
-    var stringD = [];
-    exprPart = exprPart.replace(/(\w\[)?".*?(?<!\\)"/g, function(match, mismatch, offset, input_string) {
-      if(mismatch) {
-        return match;
-      }
-      stringD.push(match);
-      return "===-\"-===";
-    });
-
-    function varConvert(s) {
-      var pos = 0;
-      var count = 0;
-      while (pos < s.length && count < s.length) {
-        s = s.substring(0, pos) + s.substring(pos).replace(/([\w\]]\s*([\[\(]))(.+)/, function(match, prefix, char, inner, offsetMain, input_string){
-          var res = varConvert(inner);
-          pos += offsetMain + /[\[\(]/.exec(match).index + 1 + res.pos;
-          
-          var found = false;
-          var openCount = 0;
-          for (var i = 0; i < match.length && !found; i++) {
-            if (match[i] == char) {
-              openCount++;
-            }
-            if (match[i] == (char == "[" ? "]" : ")")) {
-              openCount--;
-              if (!openCount) {
-                pos += i + 1;
-                found = true;
-              }
-            }
-          }
-
-          var func = /\s*\(/.exec(match.substring(pos));
-          return prefix + res.replaced.replace(/(\.?)(?<!['"\d\/])([a-z$_][\.a-z$_\d]*)(\s*\(.*?\))?/gi, function (match, period, variable, func, offset, input_string) {
-            if(((variable == '$getVar' || variable == '$getFunc') && func) || period) {
-              return match;
-            }
-            return (func ? "$getFunc('" : "$getVar('") + variable.replace(/'/, "\\'") + "')" + (func ? func : '');
-          });
-        });
-        count++;
-      }
-
-      return {replaced: s, pos: pos ? pos : count};
-    }
-
-    // Variables
-    var temp = varConvert("a("+exprPart+")").replaced;
-    exprPart = temp.substring(2, temp.length - 1);
+    var sandbox = $.extend(vars, typeof scope == 'object' ? scope : {}, newSpecial, functions);
     
-    var count = 0;
-    exprPart = exprPart.replace(/===-"-===/g, function(match, offset, input_string) {
-      return stringD[count++];
-    });
-
-    count = 0;
-    exprPart = exprPart.replace(/===-'-===/g, function(match, offset, input_string) {
-      return stringS[count++];
-    });
+    var h = hash(s);
+    var exec;
+    if (!(exec = cache(h))) {
+      exec = cache(h, Function('sandbox', `with (sandbox) {return (${s})}`));
+    } 
 
     try {
-      return Function('$getVar', '$getFunc', '"use strict"; return ' + exprPart + ';')(getVar, getFunc);
+      return exec(sandbox)
     } catch (e) {
-      if (!~e.message.indexOf('of undefined')) {
-        console.error(s);
-        throw e;
-      }
-      return undefined; 
+      console.error(s);
+      console.error(e);
+      return undefined;
     }
   }
+
+  /**
+   * Get hash of all arguments.
+   * 
+   * @returns {string}
+   *   The hash.
+   */
+  function hash() {
+    var s = "";
+    for (var i in arguments) {
+      s += stringify(arguments[i])
+    }
+
+    var hash = 0, i, chr;
+    if (s.length === 0) return hash;
+    for (i = 0; i < s.length; i++) {
+      chr   = s.charCodeAt(i);
+      hash  = ((hash << 5) - hash) + chr;
+      hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
+  }
+
+  /**
+   * Get/set a cache value.
+   * 
+   * @param {string} key 
+   *   The key of the cache.
+   * @param {*} set 
+   *   The value to save.
+   * 
+   * @returns {*}
+   *   The cached value.
+   */
+  function cache(key, set) {
+    if (set) {
+      cache.memory[key] = set
+    }
+
+    return cache.memory[key]
+  }
+
+  cache.memory = {};
   
   $.fn.jRepeat = jRepeat;
   $.fn.jTemplate = jTemplate;
