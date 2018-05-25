@@ -600,7 +600,7 @@
     var h = hash(s);
     var exec;
     if (!(exec = cache(h))) {
-      exec = cache(h, Function('sandbox', `with (sandbox) {return (${s})}`));
+      exec = cache(h, Function('sandbox', "with (sandbox) {return (" + s + "})}"));
     } 
 
     try {
@@ -621,7 +621,7 @@
   function hash() {
     var s = "";
     for (var i in arguments) {
-      s += stringify(arguments[i])
+      s += "#" + stringify(arguments[i]).replace(/#/g, "##");
     }
 
     var hash = 0, i, chr;
