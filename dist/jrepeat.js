@@ -600,7 +600,7 @@
     var h = hash(s);
     var exec;
     if (!(exec = cache(h))) {
-      exec = cache(h, Function('sandbox', "with (sandbox) {return (" + s + "})}"));
+      exec = cache(h, Function('sandbox', "with (sandbox) {return (" + s + ")}"));
     } 
 
     try {
