@@ -42,12 +42,10 @@
       </div>
   
 <template id="template1">
-  <li if="$page == 0 && $index == 0">first</li>
   <li> {{$page * $limit + $index + 1}}: <span if="var2">{{var2.test}} {{myfunc('my var3 is ')}} <span each="var3">{{var3[$index1]}}, </span></span> this is <b>{{var1}}</b> {{$self}} </li>
 </template>
   
       <ul jrepeat transitionexit="0" transitionenter="500">
-          <li if="$page == 0 && $index == 0">first</li>
           <li> {{$page * $limit + $index + 1}}: <span if="var2">{{var2.test}} {{myfunc('my var3 is ')}} <span each="var3">{{var3[$index1]}}, </span></span> this is <b>{{var1}}</b> {{$self}} </li>
       </ul>
       

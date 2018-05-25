@@ -545,14 +545,6 @@
 
     }
 
-    if (parseInt(s).toString() === s) {
-      return parseInt(s);
-    }
-
-    if (parseFloat(s).toString() === s) {
-      return parseFloat(s);
-    }
-
     if (s === 'undefined') {
       return undefined;
     }
@@ -585,14 +577,15 @@
       newSpecial['$' + i] = special[i];
     }
 
-    var vars = {};
+    var vars = {sandbox: undefined};
     var regex = /([\w]+)\s*?(\()?/g;
     var found;
     while (found = regex.exec(s)) {
       if (found[2]) {
         vars[found[1]] = function(){};
+      } else {
+        vars[found[1]] = undefined;
       }
-      vars[found[1]] = undefined;
     }
 
     var sandbox = $.extend(vars, typeof scope == 'object' ? scope : {}, newSpecial, functions);
