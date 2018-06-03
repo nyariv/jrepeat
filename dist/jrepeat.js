@@ -26,20 +26,19 @@
    */
   function jRepeat(options) {
     options = options || {};
-    var obj;
-    var $container = this;
 
-    var templateId = options.templateId;
+    var obj;;
 
-    if (!options.state) {
-      throw new Error('No state specified');
-      return;
+    var filterCallback;
+    var sortCallback;
+
+    if (this.data('jrepeat')) {
+      obj = this.data('jrepeat');
+      for (var i in options) {
+        obj.prop(i, options[i]);
+      }
+      return obj;
     }
-
-    var filterCallback = function() {return true;};
-    var onUpdateCallback = function() {};
-
-    var filtered = options.state;
 
     /**
      * @typedef jRepeatInstance
@@ -47,111 +46,304 @@
      * @property {() => number} length Get list length after filtering
      * @property {()} reset Reset filters
      * @property {(callback: ())} filter Apply filter callback
-     * @property {()} nextPage Go next page in filtered list
-     * @property {()} prevPage Go to prev page on filtered list
+     * @property {()} nextPage Go next page in currentList list
+     * @property {()} prevPage Go to prev page on currentList list
      * @property {(page: number)} setPage Set to specific page
-     * @property {()} update Update view with current state.
+     * @property {()} render Update view with current state.
      * @property {()} refresh Update both state and view
      * @property {(callback: (container: {}, instance: {})} onUpdate On update listener adder.
      * @property {(key: string, value: *)} set Set instance property
      * @property {(key: string)} get Get instance property
-     * @property {(template: string, scope: *, special?: {}) => string} renderer Html renderer
+     * @property {(template: string, scope: *, special?: {}) => string} templateRenderer Html templateRenderer
      * @property {(set: string) => string} tpl Set/get template
      * @property {object} data Instance data
      * @property {{}} data.container jQuery object container
      * @property {string} data.initialContents Iniital contents
      * @property {*} data.state Template state
-     * @property {()} internalUpdate Update the state (usually for filtering)
-     * @property {(container: {}, instance: {})} onUpdateCallback On update callback.
+     * @property {()} internalState Update the state
     */
     obj = {
       filter: function(callback) {
         filterCallback = callback;
-        attr('page', 0);
-        obj.refresh();
+        prop('page', 0);
+        refilteringNeeded = true;
+        return obj;
+      },
+      sort: function(callback) {
+        sortCallback = callback;
+        refilteringNeeded = true;
+        return obj;
       },
       reset: function() {
         filterCallback = function() {return true;};
-        attr('page', 0);
-        obj.refresh();
+        sortCallback = null;
+        prop('page', 0);
+        refilteringNeeded = true;
+        return obj;
       },
       nextPage: function() {
-        obj.setPage(attr('page') + 1);
+        return obj.setPage(prop('page') + 1);
       },
       prevPage: function() {
-        obj.setPage(attr('page') - 1);
+        return obj.setPage(prop('page') - 1);
       },
       setPage: function (page) {
-        if (!attr('limit')) {
-          attr('page', 0);
+        var lastPage = prop('page');
+        if (!prop('limit')) {
+          prop('page', 0);
         } else {
-          var max = Math.floor((filtered.length - 1) / attr('limit'));
-          attr('page', page <= max ? (page >= 0 ? page : 0) : max);
+          var max = Math.floor((currentList().length - 1) / prop('limit'));
+          prop('page', page <= max ? (page >= 0 ? page : 0) : max);
         }
-        obj.update();
+        return obj;
       },
       length: function() {
-        return filtered.length;
+        return currentList().length;
       },
-      update: update,
-      updateInternal: function () {
-        filtered = attr('state').filter(filterCallback);
+      render: function(resetCache) {
+        render(resetCache);
+        return obj;
       },
       tpl: tpl
     };
 
-    obj = $.extend($container.jTemplate(options, {
+    var filtered;
+    var refilteringNeeded = true;
+
+    function currentList() {
+      if (!prop('state')) {
+        throw new Error('No state specified');
+      }
+
+      if (refilteringNeeded) {
+        filtered = sort(filter(prop('state')));
+        refilteringNeeded = false;
+      }
+      return filtered;
+    }
+
+    function filter(arr) {
+      globalIndex = [];
+      return arr.filter(function(value, i, array) {
+        var isIn = filterCallback ? filterCallback(value, i, array) : true;
+        if (isIn) {
+          globalIndex.push(i);
+        }
+        return isIn;
+      });
+    }
+
+    function sort(arr) {
+      var res = arr;
+
+      res = res.map(function(item, i) {
+        return {item: item, gi: globalIndex[i]};
+      });
+
+      if(sortCallback) {
+          res = res.sort(function(a, b) {
+            return sortCallback(a.item, b.item) || a.gi - b.gi;
+          });
+      } else {
+        res = res.sort(function(a, b) {
+          return a.gi - b.gi;
+        });
+      }
+
+      globalIndex = [];
+      res = res.map(function(item, i){
+        globalIndex.push(item.gi);
+        return item.item;
+      });
+
+      return res;
+    }
+
+    obj = $.extend(this.jTemplate(options, {
       transitionExit: 0,
       transitionEnter: 0,
       limit: 0,
       page: 0,
-      tag: undefined
+      tag: undefined,
+      trackBy: undefined
     }), obj);
 
+    this.data('jrepeat', obj);
+
     var timer;
+    var lastApply;
+    var filterElements = {};
+    var globalIndex = [];
     /**
-     * Update view with current state.
+     * Render view with current state.
      */
-    function update () {
-      var paged = filtered;
-      if (attr('limit')) {
-        paged = filtered.slice((attr('page')) * attr('limit'), (attr('page') + 1) * attr('limit'));
-      }
+    function render (resetCache) {
+      resetCache = refilteringNeeded = refilteringNeeded || resetCache;
 
-      var contents = "";
-      for (var i = 0; i < paged.length; i++) {
-        contents += html(tpl(), paged[i], {
-          index: i, 
-          page: attr('page'), 
-          limit: attr('limit'), 
-          length: filtered.length
-        }, attr('functions'));
-      }
-
-      $container.addClass('jrepeat-processed');
-
-  
-      if ($container.data('contents') != contents) {
-        $container.data('contents', contents);
-        $container.addClass('jrepeat-exit');
-        $container.addClass('jrepeat-transitioning');
-        $container.removeClass('jrepeat-enter');
-
+      if (lastApply) {
         clearTimeout(timer);
-        timer = setTimeout(function () {
-          $container.removeClass('jrepeat-exit');
-          $container.addClass('jrepeat-enter');
-
-          $container[0].innerHTML = contents;
-          obj.onUpdateCallback($container, obj);
-
-          timer = setTimeout(function () {
-            $container.removeClass('jrepeat-enter');
-            $container.removeClass('jrepeat-transitioning');
-          }, attr('transitionEnter'));
-        }, 50 + attr('transitionExit'));
+        lastApply();
       }
+
+      var paged = currentList();
+      if (prop('limit')) {
+        paged = paged.slice((prop('page')) * prop('limit'), (prop('page') + 1) * prop('limit'));
+      }
+      
+      var offset = prop('page') * prop('limit');
+
+      var oldContents = prop('container').data('contents') || [];
+      var oldIds = (prop('container').data('ids') || []);
+
+      var contents = [];
+      var newIds = [];
+
+      var toAdd = [];
+      var toAddAfter = [];
+      for (var i = 0; i < paged.length; i++) {
+        var index = offset + i;
+        var $item = getItem(index, resetCache);
+        var id = $item.data('jid');
+        var oldIdPos = oldIds.indexOf(id);
+
+        if (!~oldIdPos) {
+          $item.addClass('jrepeat-add');
+          toAdd.push($item);
+        } else {
+          if (oldContents[oldIdPos].data('hash') !== $item.data('hash')) {
+            oldContents[oldIdPos].replaceWith($item);
+            oldContents[oldIdPos] = $item;
+          } else {
+            $item = oldContents[oldIdPos];
+          }
+        }
+
+        contents.push($item);
+        $item.data('i', i);
+        $item.data('globalIndex', globalIndex[index]);
+        newIds.push(id);
+      }
+
+      var j = 0;
+      var k = 0;
+      var lastElem;
+      while (j < oldContents.length || k < contents.length) {
+        var next = false;
+        var current;
+
+        if(!oldContents[j]) {
+          current = contents[k++];
+        } else if (!contents[k]) {
+          current = oldContents[j++];
+        } else if (oldContents[j] === contents[k]) {
+          current = contents[k++];
+          j++;
+        } else if (oldContents[j].data('globalIndex') < contents[k].data('globalIndex')) {
+          current = oldContents[j++];
+        } else {
+          current = contents[k++];
+        }
+
+        if (~toAdd.indexOf(current)) {
+          toAddAfter.push(lastElem);
+          // lastElem.after($item);
+        }
+        
+        lastElem = current;
+      }
+
+      var toRemove = [];
+      for (var i in oldIds) {
+        if (!~newIds.indexOf(oldIds[i])) {
+          oldContents[i].addClass('jrepeat-remove');
+          toRemove.push(oldContents[i]);
+        }
+      }
+
+      var stop = false;
+      lastApply = function () {
+        if (stop) return;
+        stop = true;
+
+        if (resetCache || toRemove.length === oldContents.length) {
+          prop('container').html(fragment(contents));
+        } else {
+          for (var i in toAdd) {
+            if (toAddAfter[i]) {
+              toAddAfter[i].after(toAdd[i]);
+            } else {
+              if (i === 0) {
+                prop('container').prepend(toAdd[i]);
+              } else {
+                prop('container').append(toAdd[i]);
+              }
+            }
+          }
+
+          toRemove.map(function($elem) {
+            filterElements[id] = $elem.detach().removeClass('jrepeat-remove');
+          });
+        }
+        prop('container').data('contents', contents);
+        prop('container').data('ids', newIds);
+
+        lastApply = null;
+        timer = null;
+        (prop('onUpdateCallback') || function(){})(flatten(toAdd), obj);
+        setTimeout(function () {
+          $(flatten(toAdd)).removeClass('jrepeat-add');
+        }, prop('transitionEnter'));
+      };
+    
+      if (toRemove.length && prop('transitionExit')) {
+        timer = setTimeout(lastApply,  prop('transitionExit'));
+      } else {
+        lastApply();
+      }
+
+
+
       return obj;
+    }
+
+    function flatten(arr) {
+      var res = [];
+      for (var i = 0; i < arr.length; i++) {
+        if (arr[i] instanceof jQuery) {
+          res = res.concat(flatten(arr[i]));
+        } else {
+          res.push(arr[i]);
+        }
+      }
+      return res;
+    }
+
+    function getId(index) {
+      var trackBy = prop('trackBy');
+      return trackBy ? expr(trackBy, currentList()[index], {
+        index: index,
+      }, prop('functions')) : ("$index=" + globalIndex[index]);
+    }
+
+    function getItem(index, resetCache) {
+      var id = getId(index);
+      var tmplt = tpl();
+
+      var h = hash(tmplt, currentList()[index], {
+        index: index,
+      }, prop('functions'));
+
+      if (!(filterElements[id] && filterElements[id].data('hash') === h)) {
+        filterElements[id] = $(parseHtml(html(tmplt, currentList()[index], {
+          index: index,
+        }, prop('functions'))));
+        filterElements[id].data('hash', h);
+        filterElements[id].data('jid', id);
+      }
+        
+      filterElements[id].data('index', index);
+
+      return filterElements[id];
     }
 
     /**
@@ -164,37 +356,37 @@
      *   Current template.
      */
     function tpl(set) {
-      if (set) {
-        attr('template', set);
-        update();
-      }
-
       var template = undefined;
 
-      if (!template && attr('templateId')) {
-        template = $("#" + CSS.escape(attr('templateId')))[0].innerHTML;
-      }
-      
-      if (!template && attr('tag')) {
-        template = "<" + escape(attr('tag')) + ">{{$self}}</" + escape(attr('tag')) + ">";
+      if (set) {
+        prop('template', set);
       }
 
-      if (!template && attr('template')) {
-        template = attr('template');
+
+      if (!template && prop('templateId')) {
+        template = ($("#" + CSS.escape(prop('templateId')))[0] || {}).innerHTML;
+      }
+      
+      if (!template && prop('tag')) {
+        template = "<" + escape(prop('tag')) + ">{{$self}}</" + escape(prop('tag')) + ">";
+      }
+
+      if (!template && prop('template')) {
+        template = prop('template');
       }
 
       if (!template) {
-        template = attr('initialContent');
+        template = prop('initialContent');
       }
 
       return template;
     }
 
 
-    var attr = obj.get;
-    var html = obj.renderer;
+    var prop = obj.prop;
+    var html = obj.templateRenderer;
 
-    attr('template', tpl());
+    prop('template', tpl());
 
     return obj;
   };
@@ -215,96 +407,75 @@
    */
   function jTemplate(options, attributes) {
     options = options || {};
-    attributes = attributes || {};
-    var obj;
-    var $container = this;
-
-    var templateId = options.templateId;
-    var state = options.state;
     options.functions = options.functions || {};
-    
-    var template = templateId ? $("#" + CSS.escape(templateId))[0].innerHTML : options.template;
-
-    if (!state) {
-      throw new Error('No state specified')
-    }
-
-    var onUpdateCallback = function() {
-      return obj;
-    };
-
-    attributes.templateId = templateId;
+    attributes = attributes || {};
+    attributes.templateId = attributes.templateId || undefined;
+    var obj;
 
     /**
      * @typedef jTemplateInstance
      * @type {object}
-     * @property {()} update Update view with current state.
-     * @property {() => templateInstance} refresh Update both state and view
-     * @property {(callback: (container: {}, instance: {})} onUpdate On update listener adder.
+     * @property {()} render Update view with current state.
+     * @property {(callback: (container: {}, instance: {})} onUpdate On render listener adder.
      * @property {(key: string, value: *)} set Set instance property
      * @property {(key: string)} get Get instance property
-     * @property {(template: string, scope: *, special?: {}) => string} renderer Html renderer
+     * @property {(key: string, value: *)} prop Set/get instance property
+     * @property {(template: string, scope: *, special?: {}) => string} templateRenderer Html templateRenderer
      * @property {(set: string) => string} tpl Set/get template
      * @property {object} data Instance data
      * @property {{}} data.container jQuery object container
      * @property {string} data.initialContents Iniital contents
      * @property {*} data.state Template state
-     * @property {()} internalUpdate Update the state (usually for filtering)
-     * @property {(container: {}, instance: {})} onUpdateCallback On update callback.
     */
     obj = {
-      update: update,
-      updateInternal: function(){},
-      refresh: function () {
-        obj.updateInternal();
-        obj.update();
+      render: function() {
+        render();
         return obj;
       },
       onUpdate: function(callback) {
-        obj.onUpdateCallback = callback;
+        prop('onUpdateCallback', callback);
         return obj;
       },
-      onUpdateCallback: onUpdateCallback,
       set: function(key, value) {
-        attr(key, value);
-        obj.refresh();
+        prop(key, value);
         return obj;
       },
-      get: attr,
-      renderer: html,
+      get: function(key) {
+        return prop(key);
+      },
+      prop: prop,
+      templateRenderer: html,
       tpl: tpl
     };
 
-    obj.data = $.extend({}, attributes);
-    obj.data = $.extend({}, attributes, attrs(), options, {
-      container: $container[0],
-      initialContent: $container[0].innerHTML
+    obj.data = $.extend({}, attributes, attrs(this), options, {
+      container: this,
+      initialContent: this[0].innerHTML
     });
-
-    attr('template', tpl());
 
     attrSync();
-
-    setTimeout(function() {
-      obj.update();
-    });
 
     /**
      * Update view with current state.
      */
-    function update() {
-      var $newContent = $('<div></div>');
-      $newContent.append(html(tpl(), attr('state'), {}, attr('functions')));
+    function render() {
+      if (!prop('state')) {
+        throw new Error('No state specified')
+      }
 
-      if ($newContent[0].innerHTML !== $container[0].innerHTML) {
-        $container[0].innerHTML = $newContent[0].innerHTML;
-        obj.onUpdateCallback($container, obj);
+      prop('container').addClass('jrepeat-processed');
+      var $newContent = $('<div></div>');
+      $newContent.append(html(tpl(), prop('state'), {}, prop('functions')));
+
+      if ($newContent[0].innerHTML !== prop('container')[0].innerHTML) {
+        prop('container')[0].innerHTML = $newContent[0].innerHTML;
+        (prop('onUpdateCallback') || function(){})(prop('container'), obj);
       }
       return obj;
     }
 
     /**
-     * Render builtin directives like 'each', 'show', and 'jclass'.
+     * Render builtin directives like 'each', 'show', 'if', and 'jclass'.
      * 
      * @param {string} template
      *   The template. Expressions will be executed when wrapped with {{ }}.
@@ -312,11 +483,15 @@
      *  Scope variables for use in expressions.
      * @param {object} special
      *  Extra scope variables (usuallaly used for loop index, etc).
+     * @param {object} functions
+     *  Scope functions for use in expressions.
      * 
      * @example
      *   <div each="myArray">{{myArray[$index]}}</div>
      * @example
      *   <div show="myVar">is shown: {{myVar}}</div>
+     * @example
+     *   <div if="myVar">is rendered: {{myVar}}</div>
      * @example
      *   <div jclass="{active: true}"></div>
      */
@@ -325,26 +500,26 @@
       var $template = $('<div></div>');
       $template[0].innerHTML = template;
 
-      each($template.find('[if]').not($template.find('[each] [if]')), function(i, elem) {
+      each($template.find('[data-if]').not($template.find('[data-each] [data-if]')), function(i, elem) {
         var $elem = $(elem);
-        var stateParam = $elem.attr('if');
+        var stateParam = $elem[0].dataset['if'];
         var show = stateParam ? expr(stateParam, state, special, functions) : undefined;
         if (!show) {
           $elem.remove();
         }
       });
 
-      each($template.find('[show]').not($template.find('[each] [if]')), function(i, elem) {
+      each($template.find('[data-show]').not($template.find('[data-each] [data-show]')), function(i, elem) {
         var $elem = $(elem);
-        var stateParam = $elem.attr('jshow');
+        var stateParam = $elem[0].dataset['show'];
         var show = stateParam ? expr(stateParam, state, special, functions) : undefined;
         $elem.addClass(show ? 'show' : 'hide');
         $elem.removeClass(!show ? 'show' : 'hide');
       });
 
-      each($template.find('[jclass]').not($template.find('[each] [if]')), function(i, elem) {
+      each($template.find('[data-class]').not($template.find('[data-each] [data-class]')), function(i, elem) {
         var $elem = $(elem);
-        var stateParam = $elem.attr('jclass');
+        var stateParam = $elem[0].dataset['class'];
         var classes = stateParam ? expr(stateParam, state, special, functions) : undefined;
         for (theClass in classes) {
           if (classes[theClass]) {
@@ -355,23 +530,23 @@
         }
       });
 
-      each($template.find('[each]').not($template.find('[each] [each]')), function(i, elem) {
+      each($template.find('[data-each]').not($template.find('[data-each] [data-each]')), function(i, elem) {
         var $elem = $(elem);
         var tpl = elem.innerHTML;
         var markup = "";
-        var stateParam = $elem.attr('each');
+        var stateParam = $elem[0].dataset['each'];
         var list = stateParam ? expr(stateParam, state, special, functions) : undefined;
         if (list) {
-          var newSpecial = $.extend({}, special);
+          var scopeSpecial = $.extend({}, special);
           var count = 0;
-          for (var sp in newSpecial) {
+          for (var sp in scopeSpecial) {
             if(sp.indexOf('index') == 0) {
               count++;
             }
           }
           for (var j in list) {
-            newSpecial['index' + (count ? count : '')] = j;
-            markup += html(tpl, state, newSpecial, functions);
+            scopeSpecial['index' + (count ? count : '')] = j;
+            markup += html(tpl, state, scopeSpecial, functions);
           }
         }
         elem.innerHTML = markup;
@@ -397,10 +572,10 @@
      */
     function tpl(set) {
       if (set) {
-        attr('template', set)
-        update();
+        prop('template', set)
       }
-      return  attr('template') ? attr('template') : (templateId ? $("#" + CSS.escape(templateId))[0].innerHTML : $container[0].innerHTML);
+      var templateId = prop('templateId');
+      return  prop('template') ? prop('template') : (templateId ? ($("#" + CSS.escape(templateId))[0] || {}).innerHTML : prop('initialContent'));
     }
   
     /**
@@ -412,9 +587,11 @@
      *  Scope variables for use in expressions.
      * @param {object} special
      *  Extra scope variables (usuallaly used for loop index, etc).
+     * @param {object} functions
+     *  Scope functions for use in expressions.
      */
     function html (template, state, special, functions) {
-      var h = hash(template, state, special, functions);
+      var h = hash("template", template, state, special, functions);
       var c = cache(h);
       if (c) return c;
 
@@ -455,16 +632,16 @@
      * @returns {*}
      *   Value that was set/get. 
      */
-    function attr (key, value) {
+    function prop (key, value) {
       if(typeof value == 'undefined') {
-        if ($container[0].hasAttribute(key)) {
-          return parse($container.attr(key));
+        if (attributes.hasOwnProperty(key)) {
+          return obj.data[key] = parse(obj.data.container[0].dataset[key]);
         }
         return obj.data[key];
       } else {
         obj.data[key] = value;
-        if(typeof attributes[key] != 'undefined') {
-          $container.attr(key, stringify(value, true));
+        if (attributes.hasOwnProperty(key)) {
+          obj.data.container[0].dataset[key] = stringify(value, true);
         }
       }
       return value;
@@ -476,23 +653,35 @@
      */
     function attrSync () {
       for (var i in attributes) {
-        attr(i, obj.data[i]);
+        prop(i, obj.data[i]);
       }
     }
 
     /**
      * Get all attibutes from current state.
      */
-    function attrs() {
+    function attrs(container) {
       var ret = {};
       for (var i in attributes) {
-        ret[i] = attr(i);
+        ret[i] = container[0].dataset[i];
       }
       return ret;
     }
 
     return obj;
   };
+
+  function fragment(arr) {
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] instanceof Node) {
+        frag.append(arr[i]);
+      } else if (typeof arr[i] == "object") {
+        frag.append(fragment(arr[i]));
+      }
+    }
+    return frag;
+  }
 
   /**
    * Convert js value to string
@@ -535,21 +724,32 @@
   function parse(s) {
     if (typeof s != 'string') return s;
 
+    var h = hash(s);
+    if (cache(h, null, "parse")) {
+      return cache(h, null, "parse");
+    }
+
+    var res = s
+
     if (!s.length) {
-      return undefined;
+      res = undefined;
+    } else if (s == 'undefined') {
+      res = undefined;
+    } else {
+      try {
+        res = JSON.parse(s);
+      } catch (e) {
+  
+      }
     }
+    cache(h, res, "parse")
+    return res;
+  }
 
-    try {
-      return JSON.parse(s);
-    } catch (e) {
-
-    }
-
-    if (s === 'undefined') {
-      return undefined;
-    }
-
-    return s;
+  function parseHtml(markup) {
+    var el = document.createElement('div');
+    el.innerHTML = markup;
+    return el.children;
   }
 
   /**
@@ -570,15 +770,15 @@
     special = special || {};
     functions = functions || {};
     var exprPart = s;
-    var newSpecial = {};
-    newSpecial.$self = scope;
+    var scopeSpecial = {};
+    scopeSpecial.$self = scope;
 
     for (var i in special) {
-      newSpecial['$' + i] = special[i];
+      scopeSpecial['$' + i] = special[i];
     }
 
     var vars = {sandbox: undefined};
-    var regex = /([\w]+)\s*?(\()?/g;
+    var regex = /([\w]+)\s*(\()?/g;
     var found;
     while (found = regex.exec(s)) {
       if (found[2]) {
@@ -588,9 +788,9 @@
       }
     }
 
-    var sandbox = $.extend(vars, typeof scope == 'object' ? scope : {}, newSpecial, functions);
+    var sandbox = $.extend(vars, typeof scope == 'object' ? scope : {}, scopeSpecial, functions);
     
-    var h = hash(s);
+    var h = hash("expression", s);
     var exec;
     if (!(exec = cache(h))) {
       exec = cache(h, Function('sandbox', "with (sandbox) {return (" + s + ")}"));
@@ -638,12 +838,20 @@
    * @returns {*}
    *   The cached value.
    */
-  function cache(key, set) {
-    if (set) {
-      cache.memory[key] = set
+  function cache(key, set, bucket) {
+    bucket = bucket || "general";
+    cache.memory[bucket] = cache.memory[bucket] || {};
+    
+    if (!key) {
+      delete cache.memory[bucket];
+      return
     }
 
-    return cache.memory[key]
+    if (set) {
+      cache.memory[bucket][key] = set
+    }
+
+    return cache.memory[bucket][key]
   }
 
   cache.memory = {};

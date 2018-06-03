@@ -10,12 +10,18 @@
   <link rel="stylesheet" href="css/style.css">
   <title>jRepeat</title>
   <style id="style">
-.jrepeat-transitioning {
+.jrepeat-remove {
+  transition: opacity .5s;
   opacity: 0;
 }
-.jrepeat-enter {
-  transition: opacity .5s;
-  opacity: 1;
+
+.jrepeat-add {
+  animation: fade .5s;
+}
+
+@keyframes fade {
+    from {opacity: 0;}
+    to {opacity: 1;}
 }
   </style>
 </head>
@@ -34,21 +40,24 @@
 
       <div class="controls">
         <input type="text" id="filter" onkeyup="changed()" placeholder="search">
-        <button onclick="add()">Add</button>
         <button onclick="prev()">Prev</button>
         <button onclick="next()">Next</button>
+        <button id="sort" onclick="sort()">Sort</button>
         <span class="info">Items: <span id="items"></span></span>
         <span class="info">Page: <span id="page"></span></span>
       </div>
   
 <template id="template1">
-  <li> {{$page * $limit + $index + 1}}: <span if="var2">{{var2.test}} {{myfunc('my var3 is ')}} <span each="var3">{{var3[$index1]}}, </span></span> this is <b>{{var1}}</b> {{$self}} </li>
+  <li> {{$index + 1}}: <span data-if="var2">{{var2.test}} {{myfunc('my var3 is ')}} <span data-each="var3">{{var3[$index1]}}, </span></span> this is <b>{{var1}}</b> {{$self}} </li>
 </template>
   
-      <ul jrepeat transitionexit="0" transitionenter="500">
-          <li> {{$page * $limit + $index + 1}}: <span if="var2">{{var2.test}} {{myfunc('my var3 is ')}} <span each="var3">{{var3[$index1]}}, </span></span> this is <b>{{var1}}</b> {{$self}} </li>
+      <ul data-jrepeat="" data-transition-exit="0" data-transition-enter="250" data-limit="6" data-page="0" data-template-id="template1">
       </ul>
       
+      <div class="controls">
+          <button onclick="addLimit()">Add limit</button>
+          <button onclick="add()">Add Item</button>
+      </div>
       <div class="functions">
         <textarea class="functions-input">{
   myfunc: function(val) { return val;}
@@ -59,93 +68,120 @@
   </div>
 
   <script>
-    var myObj = {one: { 
+    var myObj = {one: {
       list: [
         "a test",
-        {var1: "test1", var2: {test: "hello"}, var3: [1, 2, 3]},
-        {var1: "abc2"},
-        {var1: "testabc3"},
-        {var1: "<b>banana4</b>"},
-        {var1: "test1"},
-        {var1: "abc2"},
-        {var1: "testabc3"},
-        {var1: "<b>banana4</b>"},
-        {var1: "test1"},
-        {var1: "abc2"},
-        {var1: "testabc3"},
-        {var1: "<b>banana4</b>"},
-        {var1: "test1"},
-        {var1: "abc2"},
-        {var1: "testabc3"},
-        {var1: "<b>banana4</b>"},
-        {var1: "test1"},
-        {var1: "abc2"},
-        {var1: "test abc3"},
-        {var1: "<b>banana4</b>"},
-        {var1: "test1"},
-        {var1: "abc2"},
-        {var1: "testabc3"},
-        {var1: "<b>banana4</b>"},
-        {var1: "test1"},
-        {var1: "abc2"},
-        {var1: "testabc3"},
-        {var1: "<b>banana4</b>"},
-        {var1: "test1"},
-        {var1: "abc2"},
-        {var1: "testabc3"},
-        {var1: "<b>banana4</b>"},
+        {id: 1, var1: "test1", var2: {test: "hello"}, var3: [1, 2, 3]},
+        {id: 2, var1: "abc2"},
+        {id: 3, var1: "testabc3"},
+        {id: 4, var1: "banana4"},
+        {id: 5, var1: "test1"},
+        {id: 6, var1: "abc2"},
+        {id: 7, var1: "testabc3"},
+        {id: 8, var1: "banana4"},
+        {id: 9, var1: "test1"},
+        {id: 10, var1: "abc2"},
+        {id: 11, var1: "testabc3"},
+        {id: 12, var1: "banana4"},
+        {id: 13, var1: "test1"},
+        {id: 14, var1: "abc2"},
+        {id: 15, var1: "testabc3"},
+        {id: 16, var1: "banana4"},
+        {id: 17, var1: "test1"},
+        {id: 18, var1: "abc2"},
+        {id: 19, var1: "test abc3"},
+        {id: 20, var1: "banana4"},
+        {id: 21, var1: "test1"},
+        {id: 22, var1: "abc2"},
+        {id: 23, var1: "testabc3"},
+        {id: 24, var1: "banana4"},
+        {id: 25, var1: "test1"},
+        {id: 26, var1: "abc2"},
+        {id: 27, var1: "testabc3"},
+        {id: 28, var1: "banana4"},
+        {id: 29, var1: "test1"},
+        {id: 30, var1: "abc2"},
+        {id: 31, var1: "testabc3"},
+        {id: 32, var1: "banana4"},
       ]
     }};
   </script>
   
   <script>
 
-    var sr = jQuery('[jrepeat]').jRepeat({
+    let jr = jQuery('[data-jrepeat]').jRepeat({
       state: myObj.one.list, 
-      templateId: 'template1',
+      // templateId: 'template1',
       // transitionExit: 0,
       // transitionEnter: 500,
-      limit: 6,
-      // tag: 'li',
+      // limit: 95,
+      // trackBy: 'id',
       functions: {
         myfunc: function(val) { return val;}
       },
     });
 
-    jQuery('#page').text(sr.get('page') + 1);
+    jQuery('#page').text(jr.get('page') + 1);
     jQuery('#items').text(myObj.one.list.length);
 
 
-    sr.onUpdate(function(){
-      jQuery('#items').text(sr.length());
-      jQuery('#page').text(sr.get('page') + 1)
+    jr.onUpdate(function(elements){
+      $('li', elements).css("color", "red");
+      jQuery('#items').text(jr.length());
+      jQuery('#page').text(jr.get('page') + 1)
     });
 
-    var counter = myObj.one.list.length;
+    jr.render();
+
+    let counter = myObj.one.list.length;
     function add() {
-      var list = sr.get('state');
+      let list = jr.get('state');
       list.push({
-        var1: 'new' + ++counter
+        var1: 'new' + ++counter,
+        id: counter
       });
-      sr.updateInternal();
-      sr.set('page', Math.floor((sr.length() - 1) / sr.get('limit')));
-      sr.update();
+      jr.set('page', Math.floor((jr.length()) / jr.get('limit')));
+      jr.render(true);
     };
 
     function prev () {
-      sr.prevPage();
+      jr.prevPage().render();
     }
 
     function next() {
-      sr.nextPage();
+      jr.nextPage().render();
     }
 
+    let sorted = false;
+    function sort() {
+      sorted = !sorted;
+      jQuery('#sort').text(sorted ? "Unsort" : "Sort");
+      jr.sort(sorted ? (a, b) => {
+        if (typeof a === "object") {
+          if (typeof b === "object") {
+            return a.var1.localeCompare(b.var1);
+          } else {
+            return 1;
+          }
+        } else {
+          return -1;
+        }
+       } : null).render();
+    }
+    let filterValue = "";
+    jr.filter(function (item) {
+      return RegExp(filterValue).test(item.var1 || "");
+    });
     function changed () {
       var $filter = jQuery('#filter');
-      var filterValue = $filter.val();
-      sr.filter(function (item) {
-        return RegExp(filterValue).test(item.var1);
-      });
+      filterValue = $filter.val();
+      jr.render(true);
+    }
+
+    function addLimit() {
+      jr.set('page', 0)
+        .set('limit', jr.get('limit') + 20)
+        .render();
     }
 
   </script>

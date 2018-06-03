@@ -1,49 +1,41 @@
 jQuery(document).ready(function(){
+  // Template
   jQuery('.template-input').val(`<template id="template1">
-    ${sr.tpl().trim()}
+    ${jr.tpl().trim()}
 </template>`);
   jQuery('.template-input').keyup(function() {
     var $template = $(jQuery('.template-input').val());
     $('#template1').html($template.html())
-    sr.update();
+    jr.render();
   });
   
+  // List
   var l = jQuery.extend([], myObj.one.list);
-  // l[1].myfunc = l[1].myfunc.toString();
   jQuery('.list-input').val(JSON.stringify(l, null, 2));
   jQuery('.list-input').keyup(function() {
     var list = JSON.parse($('.list-input').val());
-    sr.set('state', list);
+    jr.set('state', list).render(true);
   });
   
-  jQuery('.element-input').val(`<ul jrepeat="" transitionexit="0" transitionenter="500" limit="6" page="0" templateid="template1"></ul>`);
+  // Element
+  jQuery('.element-input').val(jQuery('[data-jrepeat]').clone().empty()[0].outerHTML);
   jQuery('.element-input').keyup(function() {
-    var list = JSON.parse($('.list-input').val());
-    jQuery('[jrepeat]').replaceWith(jQuery('.element-input').val());
-    sr = jQuery('[jrepeat]').jRepeat({
-      state: list, 
-      functions: {
-        myfunc: function(val) { return val;}
-      }
-    });
-    jQuery('#page').text(sr.get('page') + 1);
-    jQuery('#items').text(myObj.one.list.length);
-
-
-    sr.onUpdate(function(){
-      jQuery('#items').text(sr.length());
-      jQuery('#page').text(sr.get('page') + 1)
-    });
+    jQuery('[data-jrepeat]')[0].outerHTML = jQuery('.element-input').val();
+    jr.set('container', jQuery('[data-jrepeat]'))
+    jr.render();
   });
   
+  // Style
   jQuery('.style-input').val($('#style').html().trim());
   jQuery('.style-input').keyup(function() {
     var style = $('.style-input').val();
     jQuery('#style').html(style);
   });
   
+  // Functions
   jQuery('.functions-input').keyup(function() {
     var functions = eval("(" + $('.functions-input').val() + ")");
-    sr.set('functions', functions);
+    jr.set('functions', functions);
+    jr.render();
   });
 });

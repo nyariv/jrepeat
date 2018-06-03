@@ -17,6 +17,10 @@ textarea, input[type="text"], button {
   margin-right: 10px;
 }
 
+textarea, input[type="text"] {
+  margin-right: 0;
+}
+
 button:active {
   background-image: linear-gradient(-180deg, #dedfe0 0%, #eff3f6 90%);
 }
@@ -26,7 +30,7 @@ button:active {
 }
 
 .test {
-  margin-right: 20px;
+  margin-right: 10px;
 }
 
 .test textarea {
@@ -48,11 +52,14 @@ button:active {
 .test .style textarea {
   height: 100px;
 }
+.demo .functions {
+  max-width: 600px;
+}
 
 .demo .functions textarea {
   width: 100%;
-  max-width: 568px;
-  height: 242px;
+  height: 170px;
+  box-sizing: border-box;
 }
 
 .controls {
@@ -82,6 +89,7 @@ button:active {
   font-size: .9em;
 }
 
-[jrepeat] {
-  min-height: 200px;
+[data-jrepeat] {
+  height: 244px;
+  overflow: auto;
 }
